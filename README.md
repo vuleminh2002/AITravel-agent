@@ -87,6 +87,3 @@ SERPAPI_API_KEY=your_serpapi_key
 PORT=3000
 ```
 
-## License
-
-MIT 
