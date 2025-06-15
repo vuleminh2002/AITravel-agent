@@ -16,9 +16,6 @@ An intelligent travel planning application that helps users plan their trips wit
 ### Frontend
 - React with TypeScript
 - Tailwind CSS
-- React Query
-- React Router
-- Zustand
 
 ### Backend
 - Node.js with TypeScript
