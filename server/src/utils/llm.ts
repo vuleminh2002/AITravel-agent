@@ -7,10 +7,14 @@ import { createStuffDocumentsChain } from "langchain/chains/combine_documents";
 import { createRetrievalChain } from "langchain/chains/retrieval";
 import { MemoryVectorStore } from "langchain/vectorstores/memory";
 import puppeteer from 'puppeteer';
-import {HumanMessage} from '@langchain/core/messages';
+import { HumanMessage, AIMessage } from '@langchain/core/messages';
+import { ChatMessageHistory } from "langchain/stores/message/in_memory";
 import { tool } from "@langchain/core/tools";
 
+import { addMessageToPlan, getPlanMessageHistory, getPlan } from '../models/plan.model';
+
 dotenv.config();
+
 
 // Initialize the model
 const model = new ChatOpenAI({
@@ -32,12 +36,26 @@ const model = new ChatOpenAI({
           type: "object",
           properties: {
           message: { type: "string", description: "The message from the user to be used to search the web" },
-          searchPhrase: { type: "string", description: "A concise search phrase to query real-time web data.The searchPhrase should avoid pronouns and focus on the key search terms from the message. IMPORTANT: The web search api only takes the phrase in the form with + sign between words. For example, if the message is 'I want to visit the Eiffel Tower', the searchPhrase should be 'I+want+to+visit+the+Eiffel+Tower'." },
+          searchPhrase: { type: "string", description: "A concise search phrase to query real-time web data. This search phrase should consider my travel plan and the message from the user. My travel plan is: {planContent}. The searchPhrase should avoid pronouns and focus on the key search terms from the message. IMPORTANT: The web search api only takes the phrase in the form with + sign between words. For example, if the message is 'I want to visit the Eiffel Tower', the searchPhrase should be 'I+want+to+visit+the+Eiffel+Tower'." },
           },
           required: ["message", "searchPhrase"],
         }
-      }
-    )
+      }),
+      tool(
+        generalQuestion,
+        {
+          name: "generalQuestion",
+          description: "Use this to answer all other questions related to the travel plan that cannot be answered by the searchAndProcess tool. This can also be called to answer the questions in addition to the searchAndProcess tool, for example, if user asks what are fun things to do in Paris and how does that fit into their current plan. This tool takes the user's full message and the plan id and returns an answer.",
+          schema: {
+            type: "object",
+            properties: {
+              message: { type: "string"},
+              planId: { type: "string", description: "The id of the plan. This should be keep as is and not changed." },
+            },
+            required: ["message"],
+          }
+        }
+      )
   ];
 
   const agent = model.bindTools(tools);
@@ -46,6 +64,7 @@ const model = new ChatOpenAI({
   ////////////////////////
   ////////////////////////
   ////////////////////////
+
 
 export async function webSearch(query: string) {
     try {
@@ -103,6 +122,36 @@ export async function webSearch(query: string) {
     }
   }
 
+  ////////////////////////
+  ////////////////////////
+  ////////////////////////
+  ////////////////////////
+
+
+
+
+  export async function generalQuestion(input: unknown) {
+    const { message, planId } = input as { message: string, planId: string };
+    const previousMessages = await getPlanMessageHistory(planId);
+    const planContent = await getPlan(planId);
+    const messagesForLLM = [...previousMessages, new HumanMessage(message)];
+    const prompt = ChatPromptTemplate.fromMessages([
+      ["system", "You are a helpful travel assistant. Use the message history and the plan content to answer the user's question. The plan content is: {context}. If the user's question is not related to the message history, then you should say that you cannot answer the question from the user's message history."],
+      ["user", "answer this questions: {message}. You may refer to the plan content: {context} and the message history: {history}"]
+    ]); 
+    
+    const combineDocsCHain = await createStuffDocumentsChain({
+      llm: model, 
+      prompt: prompt,
+  });
+    const response = await combineDocsCHain.invoke({
+      message: message,
+      context: [{ pageContent: planContent }],
+      history: messagesForLLM
+    });
+    return response; 
+  }
+
 
   ////////////////////////
   ////////////////////////
@@ -136,6 +185,8 @@ export async function searchAndProcess(input: unknown) {
 }
 
 
+
+
   ////////////////////////
   ////////////////////////
   ////////////////////////
@@ -144,22 +195,56 @@ export async function searchAndProcess(input: unknown) {
 
 
 export async function llmHead(planId: string, message: string) {
-  const response = await agent.invoke([new HumanMessage(message)]);
+  try {
+    // Get or create history for this plan
 
-  // Check if a tool call was requested
-  if (response.tool_calls && response.tool_calls.length > 0) {
-    for (const toolCall of response.tool_calls) {
-      if (toolCall.name === "searchAndProcess") {
-        // Actually call your function with the args
-        const toolResult = await searchAndProcess(toolCall.args);
-        // Optionally, you can now send this result back to the LLM for a final answer
-        return toolResult;
+
+    // Get all previous messages
+    const previousMessages = await getPlanMessageHistory(planId);
+
+    // Add the new human message to the array (but not to history yet)
+    const messagesForLLM = [...previousMessages, new HumanMessage(message)];
+
+    // Send the full history to the agent
+    const response = await agent.invoke(messagesForLLM);
+    // Now store the new messages in history
+    await addMessageToPlan(planId, 'human', message);
+
+    // Check if a tool call was requested
+    if (response.tool_calls && response.tool_calls.length > 0) {
+      let toolResults = [];
+      for (const toolCall of response.tool_calls) {
+        console.log(toolCall);
+        if (toolCall.name === "searchAndProcess") {
+          // Actually call your function with the args
+          const toolResult = await searchAndProcess(toolCall.args);
+          // Optionally, you can now send this result back to the LLM for a final answer
+          await addMessageToPlan(planId, 'ai', toolResult.answer);
+          toolResults.push(toolResult);
+        }
+        if(toolCall.name === "generalQuestion") {
+          const toolResult = await generalQuestion({message: message, planId: planId});
+          await addMessageToPlan(planId, 'ai', toolResult as string);
+          toolResults.push(toolResult);
+        }
+      }
+      if (toolResults.length > 0) {
+        // Return all results, or aggregate as needed
+        return { answers: toolResults };
       }
     }
+    
+    return {
+      answer: response.content || "I cannot answer that question. Please try again."
+    };
+  } catch (error) {
+    console.error('Error in llmHead:', error);
+    return {
+      answer: "Sorry, I encountered an error. Please try again."
+    };
   }
-  return {
-    answer: "I cannot answer that question. Please try again."
-  };
 }
+
+// Function to get message history for a plan
 
 export default model;

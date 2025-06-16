@@ -11,3 +11,8 @@ export const sendMessage = async (message: string, planId: string) => {
     console.log(response);
     return response.json();
 }
+
+export const getMessageHistory = async (planId: string) => {
+    const response = await fetch(`${API_URL}/history/${planId}`);
+    return response.json();
+}

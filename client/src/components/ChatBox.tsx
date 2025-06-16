@@ -11,17 +11,17 @@ export function ChatBox({selectedPlanId}: any) {
     useEffect(() => {
         const fetchPlan = async () => {
             const plan = await getPlanById(selectedPlanId);
-            setMessages([{ role: 'assistant', content: 'hey how are you' }]);
+            setMessages(plan.messages);
         };
         fetchPlan();    
     }, [selectedPlanId]);
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
-        setMessages([...messages, { role: 'user', content: input }]);
+        setMessages(messages => [...messages, { role: 'user', content: input }]);
         setInput('');
         const response = await sendMessage(input, selectedPlanId);
-        setMessages([...messages, { role: 'assistant', content: response.response.answer }]);
+        setMessages(messages => [...messages, { role: 'assistant', content: response.response.answer }]);
     };
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
