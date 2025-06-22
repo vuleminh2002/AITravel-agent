@@ -1,5 +1,5 @@
 import { google } from 'googleapis';
-import { User } from '../models/user.model';
+import { User } from '../models/user.model.js';
 
 // Define the structure for a single event to be created
 export interface CalendarEvent {

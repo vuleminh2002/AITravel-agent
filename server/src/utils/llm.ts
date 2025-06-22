@@ -11,9 +11,9 @@ import { HumanMessage, AIMessage } from '@langchain/core/messages';
 import { ChatMessageHistory } from "langchain/stores/message/in_memory";
 import { tool } from "@langchain/core/tools";
 
-import { addMessageToPlan, getPlanMessageHistory, getPlan, getUserIdFromPlan } from '../models/plan.model';
-import { getUserById } from '../models/user.model';
-import { createCalendarEvents, CalendarEvent } from '../services/calendarService';
+import { addMessageToPlan, getPlanMessageHistory, getPlan, getUserIdFromPlan } from '../models/plan.model.js';
+import { getUserById } from '../models/user.model.js';
+import { createCalendarEvents, CalendarEvent } from '../services/calendarService.js';
 
 dotenv.config();
 
@@ -153,7 +153,7 @@ export async function webSearch(query: string) {
     const vectorStore = await MemoryVectorStore.fromDocuments(searchResults, embeddings);
 
     const prompt = ChatPromptTemplate.fromMessages([
-        ["system", "You are a helpful travel assistant. You are being fed with real time information from another api call. Because of that you have access to real time information. The search results are: {context}. The search result may contains information that is not relevant to the user's question. So you need to be careful and only use the information that is relevant to the user's question."],
+        ["system", "You are a highly personalized travel assistant. The user's name is {userName}. Always address the user by their name when responding. Use the full message history and the travel plan content to provide detailed, helpful, and context-aware answers. The current travel plan is: {context}. If the user's question is not related to the message history or the travel plan, politely inform them that you can only answer questions related to their travel plans or previous messages."],
         ["user", "{input}"]
     ]);
 

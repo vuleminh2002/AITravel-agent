@@ -1,5 +1,5 @@
 import express from 'express';
-import {Plan} from '../models/plan.model';
+import {Plan} from '../models/plan.model.js';
 import {llmHead} from '../utils/llm.js';
 
 const router = express.Router();
