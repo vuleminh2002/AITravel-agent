@@ -16,7 +16,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -24,10 +24,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const checkAuth = async () => {
     try {
-      const userData = await authService.getCurrentUser();
-      console.log('Current user data:', userData);
-      if (userData) {
-        setUser(userData);
+      setLoading(true);
+      const user = await authService.getCurrentUser();
+      if (user) {
+        setUser(user);
       }
     } catch (error) {
       console.error('Auth check failed:', error);

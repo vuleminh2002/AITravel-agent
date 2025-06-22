@@ -1,131 +1,62 @@
-import { useEffect, useState } from 'react';
-import './App.css'
-import { PlansList } from './components/PlansList'
-import { createPlan, getPlans, updatePlanRequest, deletePlanRequest } from './services/planService';
-import { ChatBox } from './components/ChatBox';
+import { useState, useContext, useEffect } from 'react';
+import './App.css';
 import { GoogleLoginButton } from './components/GoogleLoginButton';
-import { useAuth } from './store/AuthContext';
+import { PlansList } from './components/PlansList';
+import { AuthContext, AuthProvider } from './store/AuthContext';
+import { GoogleOAuthProvider } from '@react-oauth/google';
+import { authService } from './services/auth';
 
-function App() {
-  const [plans, setPlans] = useState<any[]>([]);
-  const [selectedPlanId, setSelectedPlanId] = useState<any>(null);
-  const { user, loading, logout } = useAuth();
+function AppContent() {
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+  const auth = useContext(AuthContext);
+  const user = auth?.user;
 
-  useEffect(() => {
-    const fetchPlans = async () => {
-      try {
-        console.log('Fetching plans...');
-        const fetchedPlans = await getPlans();
-        console.log('Fetched plans:', fetchedPlans);
-        setPlans(fetchedPlans);
-      } catch (error) {
-        console.error('Error fetching plans:', error);
-      }
-    };
-
-    if (user) {
-      console.log('User is authenticated, fetching plans...');
-      fetchPlans();
-    } else {
-      console.log('User is not authenticated, clearing plans');
-      setPlans([]);
-    }
-  }, [user]);
-
-  const addPlan = async (plan: { countryName: string; planContent: string }) => {
-    try {
-      console.log('Creating new plan:', plan);
-      const newPlan = await createPlan(plan);
-      console.log('Plan created successfully:', newPlan);
-      setPlans(prevPlans => {
-        console.log('Previous plans:', prevPlans);
-        const updatedPlans = [...prevPlans, newPlan];
-        console.log('Updated plans:', updatedPlans);
-        return updatedPlans;
-      });
-    } catch (error) {
-      console.error('Error creating plan:', error);
-    }
+  const handlePlanSelect = (planId: string) => {
+    setSelectedPlanId(planId);
   };
-
-  const selectPlan = (id: any) => {
-    setSelectedPlanId(id);
-  } 
-
-  const deletePlan = async (id: any) => {
-    await deletePlanRequest(id);
-    setPlans(plans.filter((plan) => plan._id !== id));
-  }
-
-  const updatePlan = async (id: any, countryName: string, planContent: string) => {
-    const updatedPlan = await updatePlanRequest(id, { countryName, planContent });
-    setPlans(plans.map((plan) => plan._id === id ? updatedPlan : plan));
-  }
-
-  if (loading) {
-    return <div>Loading...</div>;
-  }
-
+  
+  const handlePlanUnselect = () => {
+    setSelectedPlanId(null);
+  };
+  
   return (
-    <div className="min-h-screen bg-gray-100">
-      <nav className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16 items-center">
-            <h1 className="text-2xl font-bold text-gray-900">AI Travel Planner</h1>
-            <div className="flex items-center gap-4">
-              {user ? (
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    {user.picture && (
-                      <img
-                        src={user.picture}
-                        alt={user.name}
-                        className="w-8 h-8 rounded-full"
-                      />
-                    )}
-                    <span className="text-gray-700">{user.name}</span>
-                  </div>
-                  <button
-                    onClick={logout}
-                    className="text-gray-700 hover:text-gray-900"
-                  >
-                    Logout
-                  </button>
-                </div>
-              ) : (
-                <GoogleLoginButton />
-              )}
-            </div>
-          </div>
-        </div>
-      </nav>
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200">
+      <header className="bg-white dark:bg-gray-800 shadow-md p-4 flex justify-between items-center">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">AI Travel Planner</h1>
         {user ? (
-          <>
-            <PlansList
-              plans={plans}
-              selectedPlanId={selectedPlanId}
-              addPlan={addPlan}
-              selectPlan={selectPlan}
-              deletePlan={deletePlan}
-              updatePlan={updatePlan}
-            />
-            {selectedPlanId && <ChatBox selectedPlanId={selectedPlanId} />}
-          </>
-        ) : (
-          <div className="text-center py-12">
-            <h2 className="text-2xl font-semibold text-gray-900 mb-4">
-              Welcome to AI Travel Planner
-            </h2>
-            <p className="text-gray-600 mb-8">
-              Please sign in to start planning your next adventure
-            </p>
-            <GoogleLoginButton />
+          <div className="flex items-center gap-4">
+            <img src={user.picture} alt={user.name} className="w-10 h-10 rounded-full" />
+            <span className="font-semibold">{user.name}</span>
+            <button 
+              onClick={() => authService.logout()} 
+              className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+            >
+              Logout
+            </button>
           </div>
+        ) : (
+          <GoogleLoginButton />
         )}
+      </header>
+
+      <main className="p-8">
+        <PlansList 
+          onPlanSelect={handlePlanSelect} 
+          onPlanUnselect={handlePlanUnselect} 
+          selectedPlanId={selectedPlanId}
+        />
       </main>
     </div>
+  );
+}
+
+function App() {
+  return (
+    <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </GoogleOAuthProvider>
   );
 }
 

@@ -11,7 +11,9 @@ import { HumanMessage, AIMessage } from '@langchain/core/messages';
 import { ChatMessageHistory } from "langchain/stores/message/in_memory";
 import { tool } from "@langchain/core/tools";
 
-import { addMessageToPlan, getPlanMessageHistory, getPlan } from '../models/plan.model';
+import { addMessageToPlan, getPlanMessageHistory, getPlan, getUserIdFromPlan } from '../models/plan.model';
+import { getUserById } from '../models/user.model';
+import { createCalendarEvents, CalendarEvent } from '../services/calendarService';
 
 dotenv.config();
 
@@ -42,20 +44,32 @@ const model = new ChatOpenAI({
         }
       }),
       tool(
-        generalQuestion,
+        calendarToolWrapper,
         {
-          name: "generalQuestion",
-          description: "Use this to answer all other questions related to the travel plan that cannot be answered by the searchAndProcess tool. This can also be called to answer the questions in addition to the searchAndProcess tool, for example, if user asks what are fun things to do in Paris and how does that fit into their current plan. This tool takes the user's full message and the plan id and returns an answer.",
-          schema: {
-            type: "object",
-            properties: {
-              message: { type: "string"},
-              planId: { type: "string", description: "The id of the plan. This should be keep as is and not changed." },
-            },
-            required: ["message"],
-          }
+            name: "create_calendar_events",
+            description: "Use this tool to create one or more events in the user's Google Calendar. From the user's request, extract event details like title, description, a precise start time, and a precise end time. The current year is 2025 unless otherwise specified.",
+            schema: {
+                type: "object",
+                properties: {
+                    events: {
+                        type: "array",
+                        description: "An array of one or more event objects to be created.",
+                        items: {
+                            type: "object",
+                            properties: {
+                                title: { type: "string", description: "The title of the calendar event." },
+                                description: { type: "string", description: "A detailed description for the event, based on the conversation." },
+                                startTime: { type: "string", description: "The event start time in ISO 8601 format (e.g., '2025-07-04T09:00:00-07:00')." },
+                                endTime: { type: "string", description: "The event end time in ISO 8601 format (e.g., '2025-07-04T17:00:00-07:00')." }
+                            },
+                            required: ["title", "description", "startTime", "endTime"]
+                        }
+                    }
+                },
+                required: ["events"]
+            }
         }
-      )
+    )
   ];
 
   const agent = model.bindTools(tools);
@@ -130,112 +144,134 @@ export async function webSearch(query: string) {
 
 
 
-  export async function generalQuestion(input: unknown) {
-    const { message, planId } = input as { message: string, planId: string };
-    const previousMessages = await getPlanMessageHistory(planId);
-    const planContent = await getPlan(planId);
-    const messagesForLLM = [...previousMessages, new HumanMessage(message)];
+  export async function searchAndProcess(input: unknown) {
+    const { message, searchPhrase } = input as { message: string, searchPhrase: string };
+
+    //this function takes the search phrase and the message from the user and returns the answer to the user's question
+    const searchResults = await webSearch(searchPhrase);
+    console.log(searchResults);
+    const vectorStore = await MemoryVectorStore.fromDocuments(searchResults, embeddings);
+
     const prompt = ChatPromptTemplate.fromMessages([
-      ["system", "You are a helpful travel assistant. Use the message history and the plan content to answer the user's question. The plan content is: {context}. If the user's question is not related to the message history, then you should say that you cannot answer the question from the user's message history."],
-      ["user", "answer this questions: {message}. You may refer to the plan content: {context} and the message history: {history}"]
-    ]); 
-    
+        ["system", "You are a helpful travel assistant. You are being fed with real time information from another api call. Because of that you have access to real time information. The search results are: {context}. The search result may contains information that is not relevant to the user's question. So you need to be careful and only use the information that is relevant to the user's question."],
+        ["user", "{input}"]
+    ]);
+
     const combineDocsCHain = await createStuffDocumentsChain({
-      llm: model, 
-      prompt: prompt,
-  });
-    const response = await combineDocsCHain.invoke({
-      message: message,
-      context: [{ pageContent: planContent }],
-      history: messagesForLLM
+        llm: model, 
+        prompt: prompt,
     });
-    return response; 
+
+    const chain = await createRetrievalChain({
+      retriever: vectorStore.asRetriever(),
+      combineDocsChain: combineDocsCHain
+    });
+    const response = await chain.invoke({input: message});    
+    return response;
   }
 
 
-  ////////////////////////
-  ////////////////////////
-  ////////////////////////
-  ////////////////////////
-
-export async function searchAndProcess(input: unknown) {
-  const { message, searchPhrase } = input as { message: string, searchPhrase: string };
-
-  //this function takes the search phrase and the message from the user and returns the answer to the user's question
-  const searchResults = await webSearch(searchPhrase);
-  console.log(searchResults);
-  const vectorStore = await MemoryVectorStore.fromDocuments(searchResults, embeddings);
-
-  const prompt = ChatPromptTemplate.fromMessages([
-      ["system", "You are a helpful travel assistant. You are being fed with real time information from another api call. Because of that you have access to real time information. The search results are: {context}. The search result may contains information that is not relevant to the user's question. So you need to be careful and only use the information that is relevant to the user's question."],
-      ["user", "{input}"]
-  ]);
-
-  const combineDocsCHain = await createStuffDocumentsChain({
-      llm: model, 
-      prompt: prompt,
-  });
-
-  const chain = await createRetrievalChain({
-    retriever: vectorStore.asRetriever(),
-    combineDocsChain: combineDocsCHain
-  });
-  const response = await chain.invoke({input: message});    
-  return response;
-}
-
-
 
 
   ////////////////////////
   ////////////////////////
   ////////////////////////
   ////////////////////////
+
+
+  async function calendarToolWrapper(input: unknown): Promise<string> {
+    const { events, planId } = input as { events: CalendarEvent[], planId: string };
+    if (!events || !planId) {
+        return "Tool was called incorrectly. The 'events' array and 'planId' are required.";
+    }
+    try {
+      const userId = await getUserIdFromPlan(planId);
+      if (!userId) {
+        return "Failed to find user for this plan. Cannot create event.";
+      }
+      const user = await getUserById(userId);
+      if (!user) {
+        return "User not found.";
+      }
+
+       if (!user.refreshToken) {
+            return "User has not granted calendar permissions. Please log out and log back in to authorize.";
+        }
+      const result = await createCalendarEvents(user, events);
+      return result.message;
+    } catch (error: any) {
+      console.error("Error in calendar tool wrapper:", error);
+      return `Failed to create calendar event: ${error.message}`;
+    }
+  }
     
 
 
 export async function llmHead(planId: string, message: string) {
   try {
-    // Get or create history for this plan
-
+    // Get the user's travel plan content for context
+    const planContent = await getPlan(planId);
+    if (!planContent) {
+      // This should ideally not happen if a plan exists, but it's a safe check
+      return { answer: "I could not find the details of your travel plan. Please ensure one is selected." };
+    }
 
     // Get all previous messages
     const previousMessages = await getPlanMessageHistory(planId);
 
-    // Add the new human message to the array (but not to history yet)
-    const messagesForLLM = [...previousMessages, new HumanMessage(message)];
+    // Create the system message with the travel plan as context
+    const systemMessage = `You are a helpful and highly personalized travel assistant. 
+    The user's current travel plan is: "${planContent}". 
+    You must use this plan as the primary context for understanding requests.
+    When asked for feedback, evaluation, or opinions on the plan, answer directly using this context.
+    When asked to schedule something, infer event details from this plan and our conversation history.`;
 
-    // Send the full history to the agent
+    // Add the new human message to the array
+    const messagesForLLM = [
+        new AIMessage({ content: systemMessage }), // Prepend the context as a system message
+        ...previousMessages, 
+        new HumanMessage(message)
+    ];
+
+    // Send the full history and context to the agent
     const response = await agent.invoke(messagesForLLM);
-    // Now store the new messages in history
+
+    // Now store the new human message in the database history
     await addMessageToPlan(planId, 'human', message);
 
     // Check if a tool call was requested
     if (response.tool_calls && response.tool_calls.length > 0) {
       let toolResults = [];
       for (const toolCall of response.tool_calls) {
-        console.log(toolCall);
-        if (toolCall.name === "searchAndProcess") {
-          // Actually call your function with the args
-          const toolResult = await searchAndProcess(toolCall.args);
-          // Optionally, you can now send this result back to the LLM for a final answer
-          await addMessageToPlan(planId, 'ai', toolResult.answer);
-          toolResults.push(toolResult);
+        console.log("LLM wants to call tool:", toolCall.name, "with args:", toolCall.args);
+        
+        let toolResult;
+        switch (toolCall.name) {
+          case "searchAndProcess":
+            toolResult = await searchAndProcess(toolCall.args);
+            await addMessageToPlan(planId, 'ai', toolResult.answer);
+            break;
+          case "create_calendar_events":
+            toolResult = await calendarToolWrapper({ ...toolCall.args, planId });
+            await addMessageToPlan(planId, 'ai', toolResult);
+            break;
+          default:
+            console.warn(`Unknown tool call: ${toolCall.name}`);
+            continue;
         }
-        if(toolCall.name === "generalQuestion") {
-          const toolResult = await generalQuestion({message: message, planId: planId});
-          await addMessageToPlan(planId, 'ai', toolResult as string);
-          toolResults.push(toolResult);
-        }
+        toolResults.push(toolResult);
       }
       if (toolResults.length > 0) {
-        // Return all results, or aggregate as needed
         return { answers: toolResults };
       }
     }
     
+    // Handle direct responses when no tool is called
+    const directResponse = response.content || "I cannot answer that question. Please try again.";
+    await addMessageToPlan(planId, 'ai', directResponse as string);
+    
     return {
-      answer: response.content || "I cannot answer that question. Please try again."
+      answer: directResponse
     };
   } catch (error) {
     console.error('Error in llmHead:', error);
@@ -247,4 +283,11 @@ export async function llmHead(planId: string, message: string) {
 
 // Function to get message history for a plan
 
+
+
+
+
 export default model;
+
+// Tool Wrapper for Calendar
+
