@@ -4,11 +4,11 @@ import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import session from 'express-session';
 import passport from 'passport';
-import planRoutes from './routes/plan.routes';
-import serpapiRoutes from './routes/serpapi.routes';
-import chatRoutes from './routes/chat.routes';
-import authRoutes from './routes/auth';
-import './auth/googleStrategy';
+import planRoutes from './routes/plan.routes.js';
+import serpapiRoutes from './routes/serpapi.routes.js';
+import chatRoutes from './routes/chat.routes.js';
+import authRoutes from './routes/auth.js';
+import './auth/googleStrategy.js';
 
 // Load environment variables
 dotenv.config();
