@@ -122,7 +122,8 @@ export async function webSearch(query: string) {
             '--disable-features=VizDisplayCompositor',
             '--single-process',
             '--no-zygote'
-          ]
+          ],
+          userDataDir: process.env.PUPPETEER_CACHE_DIR || '/opt/render/project/puppeteer'
         });
         console.log("Successfully launched browser");
       } catch (browserError) {
