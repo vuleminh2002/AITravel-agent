@@ -139,7 +139,7 @@ export async function webSearch(query: string) {
         // Fallback: return the raw search results without scraping
         console.log("Falling back to raw search results");
         return docs.map(doc => ({
-          pageContent: doc.pageContent,
+          pageContent: doc.pageContent.slice(0, 2000), // Limit to 2000 characters to avoid token limits
           metadata: { link: 'search_result' }
         }));
       }
@@ -215,7 +215,7 @@ export async function webSearch(query: string) {
       if (allDocs.length === 0) {
         console.log("No content scraped, falling back to raw search results");
         return docs.map(doc => ({
-          pageContent: doc.pageContent,
+          pageContent: doc.pageContent.slice(0, 2000), // Limit to 2000 characters to avoid token limits
           metadata: { link: 'search_result' }
         }));
       }
@@ -240,7 +240,14 @@ export async function webSearch(query: string) {
 
     // This function takes the search phrase and the message from the user and returns the answer to the user's question
     const searchResults = await webSearch(searchPhrase);
-    const vectorStore = await MemoryVectorStore.fromDocuments(searchResults, embeddings);
+    
+    // Filter and limit search results to prevent token limit issues
+    const limitedResults = searchResults.slice(0, 3).map(doc => ({
+      ...doc,
+      pageContent: doc.pageContent.slice(0, 1500) // Further limit to 1500 characters per document
+    }));
+    
+    const vectorStore = await MemoryVectorStore.fromDocuments(limitedResults, embeddings);
 
     const prompt = ChatPromptTemplate.fromMessages([
       ["system", "You are a helpful and conversational research assistant. Your task is to answer the user's question in a natural and engaging way, based *only* on the provided context. \n\n- Synthesize the information from the context into a clear and easy-to-read answer.\n- Do not just list facts; present the information as if you are having a conversation.\n- If the context does not contain the answer, simply state that you couldn't find much information on that topic.\n\nContext:\n{context}"],
