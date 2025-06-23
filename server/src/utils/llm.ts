@@ -98,28 +98,98 @@ export async function webSearch(query: string) {
       .filter(link => link && !link.includes('youtube.com') && !link.includes('youtu.be') && !link.includes('tripadvisor.com'))
       .filter(Boolean)
       .slice(0, 4);
-      console.log("Got the links");
-      const browser = await puppeteer.launch({ headless: true });
-      console.log("Launched the browser");
+      console.log("Got the links:", links);
+      
+      // If no links found, return empty array
+      if (links.length === 0) {
+        console.log("No valid links found, returning empty results");
+        return [];
+      }
+
+      let browser;
+      try {
+        console.log("Attempting to launch browser...");
+        browser = await puppeteer.launch({ 
+          headless: true,
+          args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--no-first-run',
+            '--no-zygote',
+            '--single-process',
+            '--disable-gpu',
+            '--disable-web-security',
+            '--disable-features=VizDisplayCompositor',
+            '--disable-extensions',
+            '--disable-plugins',
+            '--disable-images',
+            '--disable-javascript',
+            '--disable-background-timer-throttling',
+            '--disable-backgrounding-occluded-windows',
+            '--disable-renderer-backgrounding'
+          ],
+          timeout: 30000,
+          protocolTimeout: 30000
+        });
+        console.log("Successfully launched the browser");
+      } catch (browserError) {
+        console.error("Failed to launch browser:", browserError);
+        // Fallback: return the raw search results without scraping
+        console.log("Falling back to raw search results");
+        return docs.map(doc => ({
+          pageContent: doc.pageContent,
+          metadata: { link: 'search_result' }
+        }));
+      }
+
       const allDocs: {pageContent: string, metadata: {link: string}}[] = [];
       console.log("Created the allDocs array");
+      
       for (const link of links) {
         try {
+          console.log(`Processing link: ${link}`);
           const page = await browser.newPage();
+          
+          // Set timeouts for the page
+          page.setDefaultTimeout(30000);
+          page.setDefaultNavigationTimeout(30000);
+          
           await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36');
           await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });
-          await page.goto(link as string, { waitUntil: 'domcontentloaded', timeout: 30000 });
+          
+          // Block unnecessary resources to speed up loading
+          await page.setRequestInterception(true);
+          page.on('request', (req) => {
+            if (['image', 'stylesheet', 'font', 'media'].includes(req.resourceType())) {
+              req.abort();
+            } else {
+              req.continue();
+            }
+          });
+          
+          await page.goto(link as string, { 
+            waitUntil: 'domcontentloaded', 
+            timeout: 30000 
+          });
           console.log("Navigated to the link");
+          
+          // Wait a bit for content to load
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
           // Extract only the visible text from the <body>
           let content = await page.evaluate(() => {
                 return document.body.innerText;
           });
           console.log("Extracted the content");
+          
           // Limit to 1000 characters
           if (content.length > 1000) {
             content = content.slice(500, 2000);
           }
           console.log("Limited the content");
+          
           if (content && content.trim().length > 0) {
             console.log("first 1000 characters of the content:")
             console.log(content);
@@ -129,17 +199,30 @@ export async function webSearch(query: string) {
             });
             console.log("Added the content to the allDocs array");
           }
+          
           await page.close();
           console.log("Closed the page");
         } catch (err) {
           console.warn(`Failed to load ${link}:`, err);
         }
       }
-      console.log("Closed the browser");
+      
+      console.log("Closing the browser");
       await browser.close();
       console.log("Closed the browser");
+      
+      // If we couldn't scrape any content, fall back to raw search results
+      if (allDocs.length === 0) {
+        console.log("No content scraped, falling back to raw search results");
+        return docs.map(doc => ({
+          pageContent: doc.pageContent,
+          metadata: { link: 'search_result' }
+        }));
+      }
+      
       return allDocs;
     } catch (err) {
+      console.error("Error in webSearch:", err);
       return [];
     }
   }
