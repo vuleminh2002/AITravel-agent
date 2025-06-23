@@ -1,8 +1,14 @@
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
+// Debug logging
+console.log('VITE_API_URL:', import.meta.env.VITE_API_URL);
+console.log('Final API_URL:', API_URL);
+
 export const authService = {
   loginWithGoogle: () => {
-    window.location.href = `${API_URL}/auth/google`;
+    const loginUrl = `${API_URL}/auth/google`;
+    console.log('Redirecting to:', loginUrl);
+    window.location.href = loginUrl;
   },
 
   logout: async () => {
