@@ -149,11 +149,10 @@ export async function webSearch(query: string) {
 
     //this function takes the search phrase and the message from the user and returns the answer to the user's question
     const searchResults = await webSearch(searchPhrase);
-    console.log(searchResults);
     const vectorStore = await MemoryVectorStore.fromDocuments(searchResults, embeddings);
 
     const prompt = ChatPromptTemplate.fromMessages([
-        ["system", "You are a highly personalized travel assistant. The user's name is {userName}. Always address the user by their name when responding. Use the full message history and the travel plan content to provide detailed, helpful, and context-aware answers. The current travel plan is: {context}. If the user's question is not related to the message history or the travel plan, politely inform them that you can only answer questions related to their travel plans or previous messages."],
+        ["system", "You are a helpful assistant. You MUST use the search results provided to answer the user's question. The search results contain: {context}. Base your answer ONLY on this information. Do not say you cannot answer or that you only answer travel questions."],
         ["user", "{input}"]
     ]);
 
@@ -166,7 +165,8 @@ export async function webSearch(query: string) {
       retriever: vectorStore.asRetriever(),
       combineDocsChain: combineDocsCHain
     });
-    const response = await chain.invoke({input: message});    
+    const response = await chain.invoke({input: message, context: searchResults});   
+    
     return response;
   }
 
@@ -220,8 +220,7 @@ export async function llmHead(planId: string, message: string) {
     const previousMessages = await getPlanMessageHistory(planId);
 
     // Create the system message with the travel plan as context
-    const systemMessage = `You are a helpful and highly personalized travel assistant. 
-    The user's current travel plan is: "${planContent}". 
+    const systemMessage = `You are a highly personalized travel assistant. The user's name is {userName}. Always address the user by their name when responding. Use the full message history and the travel plan content to provide detailed, helpful, and context-aware answers. The current travel plan is: "${planContent}". 
     You must use this plan as the primary context for understanding requests.
     When asked for feedback, evaluation, or opinions on the plan, answer directly using this context.
     When asked to schedule something, infer event details from this plan and our conversation history.`;

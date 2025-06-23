@@ -1,4 +1,4 @@
-const API_URL = 'http://localhost:3000/plans';
+const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3000') + '/plans';
 
 export const getPlans = async () => {
     console.log('Making GET request to:', API_URL);
