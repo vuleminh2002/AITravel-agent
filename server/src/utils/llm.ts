@@ -10,6 +10,7 @@ import puppeteer from 'puppeteer';
 import { HumanMessage, AIMessage } from '@langchain/core/messages';
 import { ChatMessageHistory } from "langchain/stores/message/in_memory";
 import { tool } from "@langchain/core/tools";
+import fetch from 'node-fetch';
 
 import { addMessageToPlan, getPlanMessageHistory, getPlan, getUserIdFromPlan } from '../models/plan.model.js';
 import { getUserById } from '../models/user.model.js';
@@ -79,6 +80,7 @@ const model = new ChatOpenAI({
   ////////////////////////
   ////////////////////////
 
+  
 
 export async function webSearch(query: string) {
     try {
@@ -164,12 +166,7 @@ export async function webSearch(query: string) {
         }
       } catch (browserError) {
         console.error("Failed to launch browser:", browserError);
-        // Fallback: return the raw search results without scraping
-        console.log("Falling back to raw search results");
-        return docs.map(doc => ({
-          pageContent: doc.pageContent.slice(0, 2000), // Limit to 2000 characters to avoid token limits
-          metadata: { link: 'search_result' }
-        }));
+        throw new Error("Puppeteer failed to launch. No fallback is allowed. Aborting search.");
       }
 
       const allDocs: {pageContent: string, metadata: {link: string}}[] = [];
