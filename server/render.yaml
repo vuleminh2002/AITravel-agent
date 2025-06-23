@@ -2,12 +2,8 @@ services:
   - type: web
     name: travel-agent-server
     env: node
-    buildCommand: npm install && npm run build
+    buildCommand: npm install && npx puppeteer browsers install chrome && tsc
     startCommand: npm start
     envVars:
-      - key: PUPPETEER_EXECUTABLE_PATH
-        value: /usr/bin/google-chrome-stable
-      - key: PUPPETEER_CACHE_DIR
-        value: /opt/render/.cache/puppeteer
       - key: NODE_ENV
         value: production 

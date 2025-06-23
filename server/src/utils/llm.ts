@@ -6,7 +6,7 @@ import { SerpAPILoader } from "@langchain/community/document_loaders/web/serpapi
 import { createStuffDocumentsChain } from "langchain/chains/combine_documents";
 import { createRetrievalChain } from "langchain/chains/retrieval";
 import { MemoryVectorStore } from "langchain/vectorstores/memory";
-import puppeteer from 'puppeteer-core';
+import puppeteer from 'puppeteer';
 import { HumanMessage, AIMessage } from '@langchain/core/messages';
 import { ChatMessageHistory } from "langchain/stores/message/in_memory";
 import { tool } from "@langchain/core/tools";
@@ -110,57 +110,15 @@ export async function webSearch(query: string) {
       try {
         console.log("Attempting to launch browser...");
         
-        // Try multiple Chrome paths
-        const chromePaths = [
-          '/usr/bin/google-chrome-stable',
-          '/usr/bin/google-chrome',
-          '/usr/bin/chromium-browser',
-          '/usr/bin/chromium',
-          '/snap/bin/chromium',
-          process.env.PUPPETEER_EXECUTABLE_PATH
-        ].filter(Boolean);
-        
-        let browserLaunched = false;
-        for (const chromePath of chromePaths) {
-          try {
-            console.log(`Trying Chrome path: ${chromePath}`);
-            browser = await puppeteer.launch({ 
-              headless: true,
-              executablePath: chromePath,
-              args: [
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--disable-accelerated-2d-canvas',
-                '--no-first-run',
-                '--no-zygote',
-                '--single-process',
-                '--disable-gpu',
-                '--disable-web-security',
-                '--disable-features=VizDisplayCompositor',
-                '--disable-extensions',
-                '--disable-plugins',
-                '--disable-images',
-                '--disable-javascript',
-                '--disable-background-timer-throttling',
-                '--disable-backgrounding-occluded-windows',
-                '--disable-renderer-backgrounding'
-              ],
-              timeout: 30000,
-              protocolTimeout: 30000
-            });
-            console.log(`Successfully launched browser with path: ${chromePath}`);
-            browserLaunched = true;
-            break;
-          } catch (pathError: any) {
-            console.log(`Failed with path ${chromePath}:`, pathError.message);
-            continue;
-          }
-        }
-        
-        if (!browserLaunched) {
-          throw new Error("All Chrome paths failed");
-        }
+        browser = await puppeteer.launch({ 
+          headless: true,
+          args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage'
+          ]
+        });
+        console.log("Successfully launched browser");
       } catch (browserError) {
         console.error("Failed to launch browser:", browserError);
         // Fallback: return the raw search results without scraping
@@ -185,16 +143,6 @@ export async function webSearch(query: string) {
           
           await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36');
           await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });
-          
-          // Block unnecessary resources to speed up loading
-          await page.setRequestInterception(true);
-          page.on('request', (req: any) => {
-            if (['image', 'stylesheet', 'font', 'media'].includes(req.resourceType())) {
-              req.abort();
-            } else {
-              req.continue();
-            }
-          });
           
           await page.goto(link as string, { 
             waitUntil: 'domcontentloaded', 
