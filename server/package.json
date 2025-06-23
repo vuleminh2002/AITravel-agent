@@ -17,6 +17,8 @@
     "@langchain/community": "^0.3.46",
     "@langchain/core": "^0.3.58",
     "@langchain/openai": "^0.5.13",
+    "@types/cors": "^2.8.19",
+    "@types/express-session": "^1.18.2",
     "@types/passport": "^1.0.17",
     "@types/passport-google-oauth20": "^2.0.16",
     "cheerio": "^1.1.0",
@@ -35,9 +37,7 @@
     "serpapi": "^2.0.0"
   },
   "devDependencies": {
-    "@types/cors": "^2.8.19",
     "@types/express": "^4.17.17",
-    "@types/express-session": "^1.18.2",
     "@types/node": "^18.15.11",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
