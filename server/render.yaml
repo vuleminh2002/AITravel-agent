@@ -2,7 +2,7 @@ services:
   - type: web
     name: travel-agent-server
     env: node
-    buildCommand: npm install && npx puppeteer browsers install chrome && tsc
+    buildCommand: npm install && npx puppeteer browsers install chrome && npm run build-ts
     startCommand: npm start
     envVars:
       - key: NODE_ENV
