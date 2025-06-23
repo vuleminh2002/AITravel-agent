@@ -26,6 +26,7 @@ router.get(
   (req, res) => {
     console.log('Authentication successful, user:', req.user);
     console.log('Session after auth:', req.session);
+    console.log('CLIENT_URL env var:', process.env.CLIENT_URL);
     
     // Set a cookie to indicate successful login
     res.cookie('auth_success', 'true', { 
@@ -33,13 +34,16 @@ router.get(
       httpOnly: false // Allow client-side access
     });
 
+    const redirectUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    console.log('Redirecting to:', redirectUrl);
+
     // Ensure the session is saved before redirecting
     req.session.save((err) => {
       if (err) {
         console.error('Session save error:', err);
         return res.redirect('/login');
       }
-      res.redirect(process.env.CLIENT_URL || 'http://localhost:5173');
+      res.redirect(redirectUrl);
     });
   }
 );

@@ -25,9 +25,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const checkAuth = async () => {
     try {
       setLoading(true);
+      console.log('Checking authentication...');
       const user = await authService.getCurrentUser();
+      console.log('Auth check result:', user);
       if (user) {
+        console.log('Setting user in context:', user);
         setUser(user);
+      } else {
+        console.log('No user found, setting to null');
+        setUser(null);
       }
     } catch (error) {
       console.error('Auth check failed:', error);

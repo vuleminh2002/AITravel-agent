@@ -27,6 +27,7 @@ export const authService = {
 
   getCurrentUser: async () => {
     try {
+      console.log('Making getCurrentUser request to:', `${API_URL}/auth/me`);
       const response = await fetch(`${API_URL}/auth/me`, {
         credentials: 'include',
         headers: {
@@ -35,12 +36,17 @@ export const authService = {
         },
       });
       
+      console.log('getCurrentUser response status:', response.status);
+      console.log('getCurrentUser response headers:', response.headers);
+      
       if (response.ok) {
         const userData = await response.json();
         console.log('Received user data:', userData);
         return userData;
       }
       console.log('Failed to get user data:', response.status);
+      const errorText = await response.text();
+      console.log('Error response body:', errorText);
       return null;
     } catch (error) {
       console.error('Failed to get current user:', error);
