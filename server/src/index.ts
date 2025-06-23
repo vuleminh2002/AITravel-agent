@@ -13,6 +13,9 @@ import './auth/googleStrategy.js';
 // Load environment variables
 dotenv.config();
 
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('CLIENT_URL:', process.env.CLIENT_URL);
+
 const app = express();
 
 // Set up for running behind a proxy
@@ -52,17 +55,21 @@ app.options('*', cors());
 app.use(express.json());
 
 // Session middleware must come before passport
-app.use(session({
+const sessionConfig = {
   secret: process.env.SESSION_SECRET || 'your-secret-key',
   resave: true,
   saveUninitialized: true,
   cookie: {
     secure: process.env.NODE_ENV === 'production',
     maxAge: 24 * 60 * 60 * 1000, // 24 hours
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    sameSite: (process.env.NODE_ENV === 'production' ? 'none' : 'lax') as 'none' | 'lax',
     httpOnly: true,
   }
-}));
+};
+
+console.log('Session config:', sessionConfig);
+
+app.use(session(sessionConfig));
 
 // Initialize Passport and restore authentication state from session
 app.use(passport.initialize());
