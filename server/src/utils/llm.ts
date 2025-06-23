@@ -117,6 +117,7 @@ export async function webSearch(query: string) {
             content = content.slice(500, 2000);
           }
           if (content && content.trim().length > 0) {
+            console.log("first 1000 characters of the content:")
             console.log(content);
             allDocs.push({
               pageContent: content as string,
