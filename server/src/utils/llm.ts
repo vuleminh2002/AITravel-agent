@@ -160,7 +160,7 @@ export async function webSearch(query: string) {
     const vectorStore = await MemoryVectorStore.fromDocuments(searchResults, embeddings);
 
     const prompt = ChatPromptTemplate.fromMessages([
-      ["system", "You are a helpful and conversational research assistant. Your task is to answer the user's question in a natural and engaging way, based *only* on the provided context. \n\n- Synthesize the information from the context into a clear and easy-to-read answer.\n- Do not just list facts; present the information as if you are having a conversation.\n- If the context does not contain the answer, simply state that you couldn't find much information on that topic.\n"],
+      ["system", "You are a helpful and conversational research assistant. Your task is to answer the user's question in a natural and engaging way, based *only* on the provided context. \n\n- Synthesize the information from the context into a clear and easy-to-read answer.\n- Do not just list facts; present the information as if you are having a conversation.\n- If the context does not contain the answer, simply state that you couldn't find much information on that topic.\n\nContext:\n{context}"],
       ["user", "{input}"],
     ]);
 
