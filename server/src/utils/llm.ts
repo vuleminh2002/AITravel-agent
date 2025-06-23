@@ -110,15 +110,50 @@ export async function webSearch(query: string) {
       try {
         console.log("Attempting to launch browser...");
         
-        browser = await puppeteer.launch({ 
-          headless: true,
-          args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage'
-          ]
-        });
-        console.log("Successfully launched browser");
+        // Try to find Chrome in common locations
+        const chromePaths = [
+          process.env.PUPPETEER_EXECUTABLE_PATH,
+          '/opt/render/.cache/puppeteer/chrome/linux-137.0.7151.119/chrome-linux/chrome',
+          '/opt/render/.cache/puppeteer/chrome/chrome-linux/chrome',
+          '/usr/bin/google-chrome-stable',
+          '/usr/bin/chromium-browser'
+        ].filter(Boolean);
+        
+        let browserLaunched = false;
+        for (const chromePath of chromePaths) {
+          try {
+            console.log(`Trying Chrome path: ${chromePath}`);
+            browser = await puppeteer.launch({ 
+              headless: true,
+              executablePath: chromePath,
+              args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage'
+              ]
+            });
+            console.log(`Successfully launched browser with path: ${chromePath}`);
+            browserLaunched = true;
+            break;
+          } catch (pathError: any) {
+            console.log(`Failed with path ${chromePath}:`, pathError.message);
+            continue;
+          }
+        }
+        
+        if (!browserLaunched) {
+          // Try default puppeteer launch as fallback
+          console.log("Trying default puppeteer launch...");
+          browser = await puppeteer.launch({ 
+            headless: true,
+            args: [
+              '--no-sandbox',
+              '--disable-setuid-sandbox',
+              '--disable-dev-shm-usage'
+            ]
+          });
+          console.log("Successfully launched browser with default path");
+        }
       } catch (browserError) {
         console.error("Failed to launch browser:", browserError);
         // Fallback: return the raw search results without scraping
