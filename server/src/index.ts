@@ -15,6 +15,9 @@ dotenv.config();
 
 const app = express();
 
+// Set up for running behind a proxy
+app.set('trust proxy', 1);
+
 // Middleware
 app.use(cors({
   origin: process.env.CLIENT_URL || 'http://localhost:5173',
@@ -30,9 +33,9 @@ app.use(session({
   resave: true,
   saveUninitialized: true,
   cookie: {
-    secure: false, // Set to true in production with HTTPS
+    secure: true, // Always use secure cookies in production
     maxAge: 24 * 60 * 60 * 1000, // 24 hours
-    sameSite: 'lax',
+    sameSite: 'none', // Required for cross-site cookies
     httpOnly: true,
   }
 }));
