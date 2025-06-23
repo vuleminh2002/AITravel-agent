@@ -110,60 +110,21 @@ export async function webSearch(query: string) {
 
       let browser: any = null;
       try {
-        console.log("Attempting to launch browser...");
-        
-        // Try to find Chrome in common locations (including Docker paths)
-        const chromePaths = [
-          process.env.PUPPETEER_EXECUTABLE_PATH,
-          '/usr/bin/google-chrome-stable',
-          '/usr/bin/google-chrome',
-          '/usr/bin/chromium-browser',
-          '/usr/bin/chromium',
-          '/opt/render/.cache/puppeteer/chrome/linux-137.0.7151.119/chrome-linux/chrome',
-          '/opt/render/.cache/puppeteer/chrome/chrome-linux/chrome'
-        ].filter(Boolean);
-        
-        let browserLaunched = false;
-        for (const chromePath of chromePaths) {
-          try {
-            console.log(`Trying Chrome path: ${chromePath}`);
-            browser = await puppeteer.launch({ 
-              headless: true,
-              executablePath: chromePath,
-              args: [
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--disable-gpu',
-                '--disable-web-security',
-                '--disable-features=VizDisplayCompositor'
-              ]
-            });
-            console.log(`Successfully launched browser with path: ${chromePath}`);
-            browserLaunched = true;
-            break;
-          } catch (pathError: any) {
-            console.log(`Failed with path ${chromePath}:`, pathError.message);
-            continue;
-          }
-        }
-        
-        if (!browserLaunched) {
-          // Try default puppeteer launch as final fallback
-          console.log("Trying default puppeteer launch...");
-          browser = await puppeteer.launch({ 
-            headless: true,
-            args: [
-              '--no-sandbox',
-              '--disable-setuid-sandbox',
-              '--disable-dev-shm-usage',
-              '--disable-gpu',
-              '--disable-web-security',
-              '--disable-features=VizDisplayCompositor'
-            ]
-          });
-          console.log("Successfully launched browser with default path");
-        }
+        console.log("Launching Puppeteer browser...");
+        browser = await puppeteer.launch({ 
+          headless: true,
+          args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-gpu',
+            '--disable-web-security',
+            '--disable-features=VizDisplayCompositor',
+            '--single-process',
+            '--no-zygote'
+          ]
+        });
+        console.log("Successfully launched browser");
       } catch (browserError) {
         console.error("Failed to launch browser:", browserError);
         throw new Error("Puppeteer failed to launch. No fallback is allowed. Aborting search.");
