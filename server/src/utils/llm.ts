@@ -152,7 +152,7 @@ export async function webSearch(query: string) {
     const vectorStore = await MemoryVectorStore.fromDocuments(searchResults, embeddings);
 
     const prompt = ChatPromptTemplate.fromMessages([
-        ["system", "You are a helpful assistant. You MUST use the search results provided to answer the user's question. The search results contain: {context}. Base your answer ONLY on this information. Do not say you cannot answer or that you only answer travel questions."],
+        ["system", "You are a ha search processor. you recieve this raw data from the web search api. This is the data: {context}. You need to process this data and return the answer to the user's question. The user's question is: {input}. The search results contain: {context}. Base your answer ONLY on this information. Do not say you cannot answer or that you only answer travel questions."],
         ["user", "{input}"]
     ]);
 
