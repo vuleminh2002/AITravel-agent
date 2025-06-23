@@ -33,7 +33,7 @@ const model = new ChatOpenAI({
       searchAndProcess,
       {
         name: "searchAndProcess",
-        description: "Use this when a user asks a question that requires real-time information from the web. This tool takes the user's full message and a search phrase (a concise web-friendly keyword version of the message) and returns an answer.",
+        description: "Use this tool to find information about places, activities, recommendations, or any other information not present in the current travel plan. It's the best tool for answering questions like 'what are some good restaurants in Kyoto?' or 'what's the weather like in Tokyo?'.",
         schema: {
           type: "object",
           properties: {
@@ -147,27 +147,31 @@ export async function webSearch(query: string) {
   export async function searchAndProcess(input: unknown) {
     const { message, searchPhrase } = input as { message: string, searchPhrase: string };
 
-    //this function takes the search phrase and the message from the user and returns the answer to the user's question
+    // This function takes the search phrase and the message from the user and returns the answer to the user's question
     const searchResults = await webSearch(searchPhrase);
     const vectorStore = await MemoryVectorStore.fromDocuments(searchResults, embeddings);
 
     const prompt = ChatPromptTemplate.fromMessages([
-        ["system", "You are a ha search processor. you recieve this raw data from the web search api. This is the data: {context}. You need to process this data and return the answer to the user's question. The user's question is: {input}. The search results contain: {context}. Base your answer ONLY on this information. Do not say you cannot answer or that you only answer travel questions."],
-        ["user", "{input}"]
+      ["system", "You are a helpful and conversational research assistant. Your task is to answer the user's question in a natural and engaging way, based *only* on the provided context. \n\n- Synthesize the information from the context into a clear and easy-to-read answer.\n- Do not just list facts; present the information as if you are having a conversation.\n- If the context does not contain the answer, simply state that you couldn't find much information on that topic.\n\nContext:\n{context}"],
+      ["user", "{input}"],
     ]);
 
-    const combineDocsCHain = await createStuffDocumentsChain({
-        llm: model, 
-        prompt: prompt,
+    const combineDocsChain = await createStuffDocumentsChain({
+      llm: model,
+      prompt: prompt,
     });
 
     const chain = await createRetrievalChain({
       retriever: vectorStore.asRetriever(),
-      combineDocsChain: combineDocsCHain
+      combineDocsChain: combineDocsChain,
     });
-    const response = await chain.invoke({input: message, context: searchResults});   
+
+    const response = await chain.invoke({ input: message });
     
-    return response;
+    // The 'answer' is the key part of the response from the retrieval chain
+    const finalAnswer = response.answer || "I was unable to find specific information regarding your question from the search results.";
+
+    return { answer: finalAnswer };
   }
 
 
@@ -220,10 +224,11 @@ export async function llmHead(planId: string, message: string) {
     const previousMessages = await getPlanMessageHistory(planId);
 
     // Create the system message with the travel plan as context
-    const systemMessage = `You are a highly personalized travel assistant. The user's name is {userName}. Always address the user by their name when responding. Use the full message history and the travel plan content to provide detailed, helpful, and context-aware answers. The current travel plan is: "${planContent}". 
-    You must use this plan as the primary context for understanding requests.
-    When asked for feedback, evaluation, or opinions on the plan, answer directly using this context.
-    When asked to schedule something, infer event details from this plan and our conversation history.`;
+    const systemMessage = `You are a helpful and highly personalized travel assistant. 
+    Your primary goal is to help the user with their current travel plan: "${planContent}".
+    
+    Always use the travel plan as your main source of context for answering questions.
+    However, if the user asks about something that is not in their plan (like a different city, new activities, or general questions), you should use the available tools to find an answer for them. Be proactive and helpful.`;
 
     // Add the new human message to the array
     const messagesForLLM = [
