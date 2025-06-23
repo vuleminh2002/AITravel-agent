@@ -111,19 +111,47 @@ export async function webSearch(query: string) {
       let browser: any = null;
       try {
         console.log("Launching Puppeteer browser...");
+        console.log("Environment PUPPETEER_CACHE_DIR:", process.env.PUPPETEER_CACHE_DIR);
+        console.log("Current working directory:", process.cwd());
+        const cacheDir = process.env.PUPPETEER_CACHE_DIR || '.cache/puppeteer';
+        console.log("Using cache directory:", cacheDir);
+        
+        // Determine the correct executable path based on platform
+        let executablePath;
+        if (process.platform === 'darwin') {
+          // macOS
+          executablePath = `${cacheDir}/chrome/mac_arm-137.0.7151.119/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing`;
+        } else {
+          // Linux (Render)
+          executablePath = `${cacheDir}/chrome/linux-137.0.7151.119/chrome-linux/chrome`;
+        }
+        
+        console.log("Using executable path:", executablePath);
+        
+        // Check if the executable exists
+        const fs = await import('fs');
+        if (fs.existsSync(executablePath)) {
+          console.log("Executable exists at path");
+        } else {
+          console.log("Executable does NOT exist at path");
+        }
+        
         browser = await puppeteer.launch({ 
           headless: true,
+          executablePath,
           args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
             '--disable-gpu',
             '--disable-web-security',
-            '--disable-features=VizDisplayCompositor',
-            '--single-process',
-            '--no-zygote'
+            '--no-first-run',
+            '--no-default-browser-check',
+            '--disable-default-apps',
+            '--disable-extensions',
+            '--disable-plugins'
           ],
-          userDataDir: process.env.PUPPETEER_CACHE_DIR || '/opt/render/project/puppeteer'
+          userDataDir: cacheDir
         });
         console.log("Successfully launched browser");
       } catch (browserError) {
@@ -135,20 +163,31 @@ export async function webSearch(query: string) {
       console.log("Created the allDocs array");
       
       for (const link of links) {
+        let page: any = null;
         try {
           console.log(`Processing link: ${link}`);
-          const page = await browser.newPage();
+          
+          // Check if browser is still connected
+          if (!browser.isConnected()) {
+            console.log("Browser disconnected, skipping remaining links");
+            break;
+          }
+          
+          page = await browser.newPage();
           
           // Set timeouts for the page
-          page.setDefaultTimeout(30000);
-          page.setDefaultNavigationTimeout(30000);
+          page.setDefaultTimeout(15000);
+          page.setDefaultNavigationTimeout(15000);
           
           await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36');
           await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });
           
+          // Add a small delay between requests
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
           await page.goto(link as string, { 
             waitUntil: 'domcontentloaded', 
-            timeout: 30000 
+            timeout: 15000 
           });
           console.log("Navigated to the link");
           
@@ -177,25 +216,24 @@ export async function webSearch(query: string) {
             console.log("Added the content to the allDocs array");
           }
           
-          await page.close();
-          console.log("Closed the page");
         } catch (err) {
           console.warn(`Failed to load ${link}:`, err);
+        } finally {
+          // Always close the page to prevent memory leaks
+          if (page && !page.isClosed()) {
+            try {
+              await page.close();
+              console.log("Closed the page");
+            } catch (closeError) {
+              console.warn("Error closing page:", closeError);
+            }
+          }
         }
       }
       
       console.log("Closing the browser");
       await browser.close();
       console.log("Closed the browser");
-      
-      // If we couldn't scrape any content, fall back to raw search results
-      if (allDocs.length === 0) {
-        console.log("No content scraped, falling back to raw search results");
-        return docs.map(doc => ({
-          pageContent: doc.pageContent.slice(0, 2000), // Limit to 2000 characters to avoid token limits
-          metadata: { link: 'search_result' }
-        }));
-      }
       
       return allDocs;
     } catch (err) {
