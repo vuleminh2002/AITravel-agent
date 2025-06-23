@@ -7,7 +7,7 @@
     "start": "node dist/index.js",
     "dev": "node --experimental-specifier-resolution=node --loader ts-node/esm/transpile-only src/index.ts",
     "build": "npm run install-chrome && tsc",
-    "install-chrome": "npx puppeteer browsers install chrome || echo 'Chrome installation failed, will use system Chrome'",
+    "install-chrome": "curl -s https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -o chrome.deb && apt-get update && apt-get install -y ./chrome.deb || echo 'Chrome installation failed, will use fallback'",
     "postinstall": "npm run install-chrome",
     "test": "jest"
   },

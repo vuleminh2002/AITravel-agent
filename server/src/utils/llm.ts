@@ -106,61 +106,69 @@ export async function webSearch(query: string) {
         return [];
       }
 
-      let browser;
+      let browser: any = null;
       try {
         console.log("Attempting to launch browser...");
         
-        browser = await puppeteer.launch({ 
-          headless: true,
-          executablePath: '/usr/bin/google-chrome-stable',
-          args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
-            '--no-first-run',
-            '--no-zygote',
-            '--single-process',
-            '--disable-gpu',
-            '--disable-web-security',
-            '--disable-features=VizDisplayCompositor',
-            '--disable-extensions',
-            '--disable-plugins',
-            '--disable-images',
-            '--disable-javascript',
-            '--disable-background-timer-throttling',
-            '--disable-backgrounding-occluded-windows',
-            '--disable-renderer-backgrounding'
-          ],
-          timeout: 30000,
-          protocolTimeout: 30000
-        });
-        console.log("Successfully launched the browser");
+        // Try multiple Chrome paths
+        const chromePaths = [
+          '/usr/bin/google-chrome-stable',
+          '/usr/bin/google-chrome',
+          '/usr/bin/chromium-browser',
+          '/usr/bin/chromium',
+          '/snap/bin/chromium',
+          process.env.PUPPETEER_EXECUTABLE_PATH
+        ].filter(Boolean);
+        
+        let browserLaunched = false;
+        for (const chromePath of chromePaths) {
+          try {
+            console.log(`Trying Chrome path: ${chromePath}`);
+            browser = await puppeteer.launch({ 
+              headless: true,
+              executablePath: chromePath,
+              args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-accelerated-2d-canvas',
+                '--no-first-run',
+                '--no-zygote',
+                '--single-process',
+                '--disable-gpu',
+                '--disable-web-security',
+                '--disable-features=VizDisplayCompositor',
+                '--disable-extensions',
+                '--disable-plugins',
+                '--disable-images',
+                '--disable-javascript',
+                '--disable-background-timer-throttling',
+                '--disable-backgrounding-occluded-windows',
+                '--disable-renderer-backgrounding'
+              ],
+              timeout: 30000,
+              protocolTimeout: 30000
+            });
+            console.log(`Successfully launched browser with path: ${chromePath}`);
+            browserLaunched = true;
+            break;
+          } catch (pathError: any) {
+            console.log(`Failed with path ${chromePath}:`, pathError.message);
+            continue;
+          }
+        }
+        
+        if (!browserLaunched) {
+          throw new Error("All Chrome paths failed");
+        }
       } catch (browserError) {
         console.error("Failed to launch browser:", browserError);
-        // Try alternative Chrome path
-        try {
-          console.log("Trying alternative Chrome path...");
-          browser = await puppeteer.launch({ 
-            headless: true,
-            executablePath: '/usr/bin/chromium-browser',
-            args: [
-              '--no-sandbox',
-              '--disable-setuid-sandbox',
-              '--disable-dev-shm-usage',
-              '--disable-gpu'
-            ]
-          });
-          console.log("Successfully launched browser with chromium");
-        } catch (altError) {
-          console.error("Alternative browser launch also failed:", altError);
-          // Fallback: return the raw search results without scraping
-          console.log("Falling back to raw search results");
-          return docs.map(doc => ({
-            pageContent: doc.pageContent.slice(0, 2000), // Limit to 2000 characters to avoid token limits
-            metadata: { link: 'search_result' }
-          }));
-        }
+        // Fallback: return the raw search results without scraping
+        console.log("Falling back to raw search results");
+        return docs.map(doc => ({
+          pageContent: doc.pageContent.slice(0, 2000), // Limit to 2000 characters to avoid token limits
+          metadata: { link: 'search_result' }
+        }));
       }
 
       const allDocs: {pageContent: string, metadata: {link: string}}[] = [];
@@ -180,7 +188,7 @@ export async function webSearch(query: string) {
           
           // Block unnecessary resources to speed up loading
           await page.setRequestInterception(true);
-          page.on('request', (req) => {
+          page.on('request', (req: any) => {
             if (['image', 'stylesheet', 'font', 'media'].includes(req.resourceType())) {
               req.abort();
             } else {
