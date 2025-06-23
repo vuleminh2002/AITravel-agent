@@ -110,13 +110,15 @@ export async function webSearch(query: string) {
       try {
         console.log("Attempting to launch browser...");
         
-        // Try to find Chrome in common locations
+        // Try to find Chrome in common locations (including Docker paths)
         const chromePaths = [
           process.env.PUPPETEER_EXECUTABLE_PATH,
-          '/opt/render/.cache/puppeteer/chrome/linux-137.0.7151.119/chrome-linux/chrome',
-          '/opt/render/.cache/puppeteer/chrome/chrome-linux/chrome',
           '/usr/bin/google-chrome-stable',
-          '/usr/bin/chromium-browser'
+          '/usr/bin/google-chrome',
+          '/usr/bin/chromium-browser',
+          '/usr/bin/chromium',
+          '/opt/render/.cache/puppeteer/chrome/linux-137.0.7151.119/chrome-linux/chrome',
+          '/opt/render/.cache/puppeteer/chrome/chrome-linux/chrome'
         ].filter(Boolean);
         
         let browserLaunched = false;
@@ -129,7 +131,10 @@ export async function webSearch(query: string) {
               args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage'
+                '--disable-dev-shm-usage',
+                '--disable-gpu',
+                '--disable-web-security',
+                '--disable-features=VizDisplayCompositor'
               ]
             });
             console.log(`Successfully launched browser with path: ${chromePath}`);
@@ -142,14 +147,17 @@ export async function webSearch(query: string) {
         }
         
         if (!browserLaunched) {
-          // Try default puppeteer launch as fallback
+          // Try default puppeteer launch as final fallback
           console.log("Trying default puppeteer launch...");
           browser = await puppeteer.launch({ 
             headless: true,
             args: [
               '--no-sandbox',
               '--disable-setuid-sandbox',
-              '--disable-dev-shm-usage'
+              '--disable-dev-shm-usage',
+              '--disable-gpu',
+              '--disable-web-security',
+              '--disable-features=VizDisplayCompositor'
             ]
           });
           console.log("Successfully launched browser with default path");
