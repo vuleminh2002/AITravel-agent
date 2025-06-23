@@ -6,7 +6,7 @@ import { SerpAPILoader } from "@langchain/community/document_loaders/web/serpapi
 import { createStuffDocumentsChain } from "langchain/chains/combine_documents";
 import { createRetrievalChain } from "langchain/chains/retrieval";
 import { MemoryVectorStore } from "langchain/vectorstores/memory";
-import puppeteer from 'puppeteer';
+import puppeteer from 'puppeteer-core';
 import { HumanMessage, AIMessage } from '@langchain/core/messages';
 import { ChatMessageHistory } from "langchain/stores/message/in_memory";
 import { tool } from "@langchain/core/tools";
@@ -110,34 +110,9 @@ export async function webSearch(query: string) {
       try {
         console.log("Attempting to launch browser...");
         
-        // Check if we're in a server environment and try to find Chrome
-        const possibleChromePaths = [
-          process.env.PUPPETEER_EXECUTABLE_PATH,
-          '/usr/bin/google-chrome-stable',
-          '/usr/bin/google-chrome',
-          '/usr/bin/chromium-browser',
-          '/usr/bin/chromium'
-        ];
-        
-        let executablePath = undefined;
-        for (const path of possibleChromePaths) {
-          if (path) {
-            try {
-              const fs = await import('fs');
-              if (fs.existsSync(path)) {
-                executablePath = path;
-                console.log(`Found Chrome at: ${path}`);
-                break;
-              }
-            } catch (e) {
-              // Continue to next path
-            }
-          }
-        }
-        
         browser = await puppeteer.launch({ 
           headless: true,
-          executablePath: executablePath,
+          executablePath: '/usr/bin/google-chrome-stable',
           args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
@@ -163,12 +138,29 @@ export async function webSearch(query: string) {
         console.log("Successfully launched the browser");
       } catch (browserError) {
         console.error("Failed to launch browser:", browserError);
-        // Fallback: return the raw search results without scraping
-        console.log("Falling back to raw search results");
-        return docs.map(doc => ({
-          pageContent: doc.pageContent.slice(0, 2000), // Limit to 2000 characters to avoid token limits
-          metadata: { link: 'search_result' }
-        }));
+        // Try alternative Chrome path
+        try {
+          console.log("Trying alternative Chrome path...");
+          browser = await puppeteer.launch({ 
+            headless: true,
+            executablePath: '/usr/bin/chromium-browser',
+            args: [
+              '--no-sandbox',
+              '--disable-setuid-sandbox',
+              '--disable-dev-shm-usage',
+              '--disable-gpu'
+            ]
+          });
+          console.log("Successfully launched browser with chromium");
+        } catch (altError) {
+          console.error("Alternative browser launch also failed:", altError);
+          // Fallback: return the raw search results without scraping
+          console.log("Falling back to raw search results");
+          return docs.map(doc => ({
+            pageContent: doc.pageContent.slice(0, 2000), // Limit to 2000 characters to avoid token limits
+            metadata: { link: 'search_result' }
+          }));
+        }
       }
 
       const allDocs: {pageContent: string, metadata: {link: string}}[] = [];

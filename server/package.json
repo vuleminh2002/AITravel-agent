@@ -6,8 +6,9 @@
   "scripts": {
     "start": "node dist/index.js",
     "dev": "node --experimental-specifier-resolution=node --loader ts-node/esm/transpile-only src/index.ts",
-    "build": "tsc && npx puppeteer browsers install chrome",
-    "postinstall": "npx puppeteer browsers install chrome || echo 'Chrome installation failed, will use fallback'",
+    "build": "npm run install-chrome && tsc",
+    "install-chrome": "npx puppeteer browsers install chrome || echo 'Chrome installation failed, will use system Chrome'",
+    "postinstall": "npm run install-chrome",
     "test": "jest"
   },
   "keywords": [],
@@ -35,6 +36,7 @@
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
     "puppeteer": "^24.10.1",
+    "puppeteer-core": "^24.10.2",
     "serpapi": "^2.0.0"
   },
   "devDependencies": {
