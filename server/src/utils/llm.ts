@@ -109,8 +109,35 @@ export async function webSearch(query: string) {
       let browser;
       try {
         console.log("Attempting to launch browser...");
+        
+        // Check if we're in a server environment and try to find Chrome
+        const possibleChromePaths = [
+          process.env.PUPPETEER_EXECUTABLE_PATH,
+          '/usr/bin/google-chrome-stable',
+          '/usr/bin/google-chrome',
+          '/usr/bin/chromium-browser',
+          '/usr/bin/chromium'
+        ];
+        
+        let executablePath = undefined;
+        for (const path of possibleChromePaths) {
+          if (path) {
+            try {
+              const fs = await import('fs');
+              if (fs.existsSync(path)) {
+                executablePath = path;
+                console.log(`Found Chrome at: ${path}`);
+                break;
+              }
+            } catch (e) {
+              // Continue to next path
+            }
+          }
+        }
+        
         browser = await puppeteer.launch({ 
           headless: true,
+          executablePath: executablePath,
           args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
