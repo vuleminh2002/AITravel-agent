@@ -111,34 +111,9 @@ export async function webSearch(query: string) {
       let browser: any = null;
       try {
         console.log("Launching Puppeteer browser...");
-        console.log("Environment PUPPETEER_CACHE_DIR:", process.env.PUPPETEER_CACHE_DIR);
-        console.log("Current working directory:", process.cwd());
-        const cacheDir = process.env.PUPPETEER_CACHE_DIR || '.cache/puppeteer';
-        console.log("Using cache directory:", cacheDir);
-        
-        // Determine the correct executable path based on platform
-        let executablePath;
-        if (process.platform === 'darwin') {
-          // macOS
-          executablePath = `${cacheDir}/chrome/mac_arm-137.0.7151.119/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing`;
-        } else {
-          // Linux (Render)
-          executablePath = `${cacheDir}/chrome/linux-137.0.7151.119/chrome-linux/chrome`;
-        }
-        
-        console.log("Using executable path:", executablePath);
-        
-        // Check if the executable exists
-        const fs = await import('fs');
-        if (fs.existsSync(executablePath)) {
-          console.log("Executable exists at path");
-        } else {
-          console.log("Executable does NOT exist at path");
-        }
-        
         browser = await puppeteer.launch({ 
           headless: true,
-          executablePath,
+          executablePath: process.env.NODE_ENV === 'production' ? process.env.PUPPETEER_EXECUTABLE_PATH : puppeteer.executablePath(),
           args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
@@ -150,8 +125,7 @@ export async function webSearch(query: string) {
             '--disable-default-apps',
             '--disable-extensions',
             '--disable-plugins'
-          ],
-          userDataDir: cacheDir
+          ]
         });
         console.log("Successfully launched browser");
       } catch (browserError) {

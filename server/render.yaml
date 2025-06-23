@@ -1,13 +1,9 @@
 services:
   - type: web
     name: travel-agent-server
-    env: node
-    buildCommand: ./render-build.sh
-    startCommand: npm start
+    env: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
     envVars:
       - key: NODE_ENV
-        value: production
-      - key: PUPPETEER_CACHE_DIR
-        value: /opt/render/project/puppeteer
-      - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
-        value: "false" 
+        value: production 
