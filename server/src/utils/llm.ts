@@ -82,13 +82,14 @@ const model = new ChatOpenAI({
 
 export async function webSearch(query: string) {
     try {
+      console.log("Got into webSearch");
       const loader = new SerpAPILoader({
         q: query,
         apiKey: process.env.SERPAPI_API_KEY
       });
-      
+      console.log("Loaded the loader");
       const docs = await loader.load();
-  
+      console.log("Loaded the docs");
       const links = docs.map(doc => {
         const content = doc.pageContent;
         const match = content.match(/https?:\/\/[^\s"']+/g);
@@ -97,25 +98,28 @@ export async function webSearch(query: string) {
       .filter(link => link && !link.includes('youtube.com') && !link.includes('youtu.be') && !link.includes('tripadvisor.com'))
       .filter(Boolean)
       .slice(0, 4);
-  
+      console.log("Got the links");
       const browser = await puppeteer.launch({ headless: true });
+      console.log("Launched the browser");
       const allDocs: {pageContent: string, metadata: {link: string}}[] = [];
-  
+      console.log("Created the allDocs array");
       for (const link of links) {
         try {
           const page = await browser.newPage();
           await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36');
           await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });
           await page.goto(link as string, { waitUntil: 'domcontentloaded', timeout: 30000 });
-  
+          console.log("Navigated to the link");
           // Extract only the visible text from the <body>
           let content = await page.evaluate(() => {
                 return document.body.innerText;
           });
+          console.log("Extracted the content");
           // Limit to 1000 characters
           if (content.length > 1000) {
             content = content.slice(500, 2000);
           }
+          console.log("Limited the content");
           if (content && content.trim().length > 0) {
             console.log("first 1000 characters of the content:")
             console.log(content);
@@ -123,14 +127,17 @@ export async function webSearch(query: string) {
               pageContent: content as string,
               metadata: { link: link as string }
             });
+            console.log("Added the content to the allDocs array");
           }
           await page.close();
+          console.log("Closed the page");
         } catch (err) {
           console.warn(`Failed to load ${link}:`, err);
         }
       }
-  
+      console.log("Closed the browser");
       await browser.close();
+      console.log("Closed the browser");
       return allDocs;
     } catch (err) {
       return [];
@@ -153,7 +160,7 @@ export async function webSearch(query: string) {
     const vectorStore = await MemoryVectorStore.fromDocuments(searchResults, embeddings);
 
     const prompt = ChatPromptTemplate.fromMessages([
-      ["system", "You are a helpful and conversational research assistant. Your task is to answer the user's question in a natural and engaging way, based *only* on the provided context. \n\n- Synthesize the information from the context into a clear and easy-to-read answer.\n- Do not just list facts; present the information as if you are having a conversation.\n- If the context does not contain the answer, simply state that you couldn't find much information on that topic.\n\nContext:\n{context}"],
+      ["system", "You are a helpful and conversational research assistant. Your task is to answer the user's question in a natural and engaging way, based *only* on the provided context. \n\n- Synthesize the information from the context into a clear and easy-to-read answer.\n- Do not just list facts; present the information as if you are having a conversation.\n- If the context does not contain the answer, simply state that you couldn't find much information on that topic.\n"],
       ["user", "{input}"],
     ]);
 
